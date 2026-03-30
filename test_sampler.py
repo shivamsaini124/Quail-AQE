@@ -1,16 +1,17 @@
 # test_sampler.py
+from parser import parse
+from classify import SamplingPlan
 from rewriter.sample_builder import (
-    SampleBuilder, SampleFragment,
-    SampleSizeError, SampleSizeGate,
-    QueryIR, SamplingPlan          # using mocks for now
+    SampleBuilder,
+    SampleSizeError,
 )
 
 builder = SampleBuilder()
 
 # ── Test 1: Uniform strategy ──────────────────────────────────────
 def test_uniform():
-    ir   = QueryIR(tables=["orders"], table_row_count=100_000)
-    plan = SamplingPlan(strategy="sampling", sample_rate=0.1)
+    ir = parse("SELECT COUNT(*) FROM orders")
+    plan = SamplingPlan(strategy="SAMPLING", sample_rate=0.1, table_row_count=100_000)
     frag = builder.build(ir, plan)
 
     assert frag.strategy == "uniform"
@@ -22,9 +23,14 @@ def test_uniform():
 
 # ── Test 2: Stratified strategy ───────────────────────────────────
 def test_stratified():
-    ir   = QueryIR(tables=["orders"], table_row_count=100_000)
-    plan = SamplingPlan(strategy="filter_sampling", sample_rate=0.1,
-                        stratify_on=["region"])
+    ir = parse("SELECT region, COUNT(*) FROM orders GROUP BY region")
+    plan = SamplingPlan(
+        strategy="FILTERED_SAMPLING",
+        sample_rate=0.1,
+        stratify_on=["region"],
+        table_row_count=100_000,
+        hash_key="id",
+    )
     frag = builder.build(ir, plan)
 
     assert frag.strategy == "stratified"
@@ -38,8 +44,8 @@ def test_stratified():
 
 # ── Test 3: Hash strategy ─────────────────────────────────────────
 def test_hash():
-    ir   = QueryIR(tables=["orders"], table_row_count=100_000)
-    plan = SamplingPlan(strategy="hybrid", sample_rate=0.1)
+    ir = parse("SELECT COUNT(*) FROM orders WHERE a = 1")
+    plan = SamplingPlan(strategy="HYBRID", sample_rate=0.1, table_row_count=100_000, hash_key="id")
     frag = builder.build(ir, plan)
 
     assert frag.strategy == "hash"
@@ -49,8 +55,8 @@ def test_hash():
 
 # ── Test 4: Gate blocks tiny samples ─────────────────────────────
 def test_gate_blocks_small_n():
-    ir   = QueryIR(tables=["orders"], table_row_count=100)
-    plan = SamplingPlan(strategy="sampling", sample_rate=0.001)  # n = 0.1 rows!
+    ir = parse("SELECT COUNT(*) FROM orders")
+    plan = SamplingPlan(strategy="SAMPLING", sample_rate=0.001, table_row_count=100)  # n ~ 0
     try:
         builder.build(ir, plan)
         print("❌ test_gate_blocks_small_n FAILED — should have raised")
@@ -59,9 +65,8 @@ def test_gate_blocks_small_n():
 
 # ── Test 5: Fallback to uniform when no stratify_on ──────────────
 def test_filter_sampling_no_strat_key():
-    ir   = QueryIR(tables=["orders"], table_row_count=100_000)
-    plan = SamplingPlan(strategy="filter_sampling", sample_rate=0.1,
-                        stratify_on=None)  # no group key
+    ir = parse("SELECT COUNT(*) FROM orders")
+    plan = SamplingPlan(strategy="FILTERED_SAMPLING", sample_rate=0.1, stratify_on=None, table_row_count=100_000)
     frag = builder.build(ir, plan)
 
     assert frag.strategy == "uniform"   # falls back to uniform

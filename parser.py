@@ -15,7 +15,7 @@ class QueryIR:
     has_distinct: bool
     ast: exp.Expression
 
-def parse(sql: str, dialect: str = "postgres") -> QueryIR:
+def parse(sql: str, dialect: str = "duckdb") -> QueryIR:
     ast = sqlglot.parse_one(sql, dialect=dialect)
     return QueryIR(
         query_type   = type(ast).__name__,

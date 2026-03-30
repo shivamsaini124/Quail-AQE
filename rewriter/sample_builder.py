@@ -3,31 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-# ─────────────────────────────────────────────
-# MOCK CLASSES - replace with real imports later
-# from parser import QueryIR
-# from classifier import SamplingPlan
-# ─────────────────────────────────────────────
-
-@dataclass
-class QueryIR:
-    """Temporary mock — will be replaced by real parser.QueryIR"""
-    tables: list[str]
-    table_row_count: int | None = None
-    stratify_on: list[str] | None = None
-    # Optional stable key (e.g., primary key) used for deterministic hashing/order.
-    # Keep this name flexible so it can map to your real IR later.
-    sample_key: str | None = "id"
-
-@dataclass
-class SamplingPlan:
-    """Temporary mock — will be replaced by real classifier.SamplingPlan"""
-    strategy: str          # "sampling" | "filter_sampling" | "hybrid"
-    sample_rate: float
-    stratify_on: list[str] | None = None
-    predicted_error: float = 0.05
-    # Optional override for the key used in hash-based sampling/order.
-    hash_key: str | None = None
+from parser import QueryIR
+from classify import SamplingPlan, Strategy
 
 
 # ─────────────────────────────────────────────
@@ -93,7 +70,7 @@ class SampleBuilder:
         self.gate = gate or SampleSizeGate()
 
     def build(self, ir: QueryIR, plan: SamplingPlan) -> SampleFragment:
-        row_count = ir.table_row_count or 1_000_000  # fallback estimate
+        row_count = plan.table_row_count or 1_000_000  # fallback estimate
 
         # Gate check — is n large enough?
         if not self.gate.passes(plan, row_count):
@@ -104,22 +81,25 @@ class SampleBuilder:
             )
 
         table = ir.tables[0]
-        hash_key = plan.hash_key or ir.sample_key or "id"
+        hash_key = plan.hash_key or "id"
 
-        if plan.strategy == "sampling":
+        if plan.strategy == "SAMPLING":
             return self._uniform(table, plan.sample_rate)
 
-        elif plan.strategy == "filter_sampling":
-            strat_key = plan.stratify_on[0] if plan.stratify_on else None
+        elif plan.strategy == "FILTERED_SAMPLING":
+            strat_key = plan.stratify_on[0] if plan.stratify_on else (ir.groupby_cols[0] if ir.groupby_cols else None)
             if strat_key:
                 return self._stratified(table, strat_key, plan.sample_rate, hash_key=hash_key)
             return self._uniform(table, plan.sample_rate)
 
-        elif plan.strategy == "hybrid":
-            strat_key = plan.stratify_on[0] if plan.stratify_on else None
+        elif plan.strategy == "HYBRID":
+            strat_key = plan.stratify_on[0] if plan.stratify_on else (ir.groupby_cols[0] if ir.groupby_cols else None)
             if strat_key:
                 return self._stratified(table, strat_key, plan.sample_rate, hash_key=hash_key)
             return self._hash(table, plan.sample_rate, hash_key=hash_key)
+
+        elif plan.strategy == "EXACT":
+            raise SampleSizeError("EXACT strategy requested; no sampling fragment should be built.")
 
         else:
             raise ValueError(f"Unknown strategy: {plan.strategy!r}")
