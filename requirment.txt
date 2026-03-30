@@ -1,1 +1,2 @@
-pip install sqlglot
+sqlglot
+sqlglot xgboost
