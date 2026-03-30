@@ -8,7 +8,8 @@ BYPASS_QUERY_TYPES = {"Insert", "Create", "Update", "Delete", "Drop", "Alter", "
 
 
 def should_approximate(ir: "QueryIR") -> tuple[bool, str]:
-    if ir.query_type in BYPASS_QUERY_TYPES:
+    query_type = ir.query_type.upper()
+    if query_type in BYPASS_QUERY_TYPES:
         return False, "ddl_dml"
 
     if ir.has_distinct:                         
