@@ -2,3 +2,4 @@ sqlglot
 unicorn
 fastapi
 duckdb
+xgboost
