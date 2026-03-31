@@ -1,5 +1,4 @@
 sqlglot
-unicorn
+uvicorn
 fastapi
 duckdb
-xgboost

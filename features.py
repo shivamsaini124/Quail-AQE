@@ -112,11 +112,16 @@ def extract(
     p1 = extract_phase1(ir)
 
     if phase1_sufficient(p1):
+        try:
+            row_count = catalog.get_stats(ir.tables[0]).row_count
+        except IndexError:
+            row_count = 1000000
+
         p2 = Phase2Features(
             selectivity     = 1.0,
             variance        = 0.0,
             group_count     = 1,
-            table_row_count = 0,
+            table_row_count = row_count,
         )
     else:
         p2 = extract_phase2(ir, catalog)

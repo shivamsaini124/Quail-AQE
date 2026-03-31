@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from parser import QueryIR
 
-BYPASS_QUERY_TYPES = {"Insert", "Create", "Update", "Delete", "Drop", "Alter", "Merge"}
+BYPASS_QUERY_TYPES = {"INSERT", "CREATE", "UPDATE", "DELETE", "DROP", "ALTER", "MERGE"}
 
 
 def should_approximate(ir: "QueryIR") -> tuple[bool, str]:
